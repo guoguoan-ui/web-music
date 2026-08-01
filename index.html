@@ -93,6 +93,13 @@ body.electron .app{ height:100vh; border-radius:0; box-shadow:none; border:none 
 .lyrics .empty,.empty{color:var(--dim2); font-size:12.5px; text-align:center; padding:40px 10px; line-height:1.9}
 .empty.hide{display:none}
 
+/* 收藏页：导入按钮 */
+.fav-head{display:flex; align-items:center; justify-content:space-between; padding:4px 6px 8px; flex-shrink:0}
+.fav-title{font-size:14px; font-weight:700; color:var(--text)}
+#importBtn{border:none; background:var(--brand); color:#fff; font-size:12.5px; font-weight:600;
+  padding:8px 14px; border-radius:20px; cursor:pointer; box-shadow:0 4px 12px rgba(108,140,255,.3); transition:transform .15s}
+#importBtn:active{transform:scale(.92)}
+
 /* AI 助手 */
 .ai{height:100%; display:flex; flex-direction:column; padding:8px; gap:8px}
 .ai .msgs{flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:4px}
@@ -175,7 +182,11 @@ body.electron .player .btn, body.electron .player .bar{ -webkit-app-region: no-d
       <div class="empty" id="lyricEmpty">播放歌曲后可看同步歌词</div>
     </div>
     <div id="view-fav" style="display:none">
-      <div class="empty" id="favEmpty">还没有收藏的歌曲</div>
+      <div class="fav-head">
+        <span class="fav-title">我的收藏</span>
+        <button id="importBtn">＋ 导入网易云歌单</button>
+      </div>
+      <div class="empty" id="favEmpty">还没有收藏的歌曲<br>点上方"导入网易云歌单"一键加入</div>
       <div id="favList"></div>
     </div>
     <div id="view-ai" style="display:none">
@@ -349,22 +360,19 @@ function importNetease(){
   const m = String(id).match(/id=(\d+)/) || String(id).match(/^(\d{5,})$/);
   const pid = m ? m[1] : null;
   if(!pid){ alert("没识别到歌单 ID，请粘贴完整歌单链接"); return; }
-  fetch("https://music.163.com/api/playlist/detail?id="+pid)
+  fetch(API+"playlist&id="+pid)
     .then(r=>r.json())
     .then(d=>{
-      const tracks = (d && d.result && d.result.tracks) || [];
-      if(!tracks.length){ alert("没取到歌单内容，可能歌单是私密的，请公开后再试"); return; }
+      if(!Array.isArray(d)||!d.length){ alert("没取到歌单内容，可能歌单是私密的或不存在，请换公开歌单"); return; }
       let added=0;
-      tracks.forEach(t=>{
-        const s={ t:t.name, a:(t.ar||[]).map(x=>x.name).join(", "),
-          url:API+"url&id="+t.id, pic:(t.al&&t.al.picUrl)||"",
-          lrc:API+"lrc&id="+t.id, dur:Math.round((t.dt||0)/1000), src:"网易云导入" };
+      d.forEach(x=>{
+        const s={ t:x.name, a:x.artist||"", url:x.url, pic:x.pic||"", lrc:x.lrc||"", dur:x.duration||0, src:"网易云导入" };
         if(!favs.some(f=>f.url===s.url)){ favs.push(s); added++; }
       });
       localStorage.setItem("favs",JSON.stringify(favs));
       $("#favCnt").textContent=favs.length;
       renderFavs();
-      alert("已导入 "+added+" 首到「收藏」（去重后）");
+      alert("已导入 "+added+" 首到「收藏」");
     })
     .catch(()=>alert("导入失败，网络或接口问题，稍后再试"));
 }
@@ -425,6 +433,7 @@ $("#next").onclick=next;
 $("#prev").onclick=prev;
 $("#heart").onclick=()=>{ if(queue[qi]) toggleFav(queue[qi]); };
 $("#aiSend").onclick=aiSend;
+$("#importBtn").onclick=importNetease;
 $("#aiIn").addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); aiSend(); } });
 
 audio.addEventListener("play",()=>{ playing=true; $("#player").classList.add("playing"); $("#playIcon").innerHTML='<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>'; });
