@@ -151,6 +151,14 @@ body.electron .app{ height:100vh; border-radius:0; box-shadow:none; border:none 
 body.electron .player{ -webkit-app-region: drag }
 body.electron .player .btn, body.electron .player .bar{ -webkit-app-region: no-drag }
 @media (max-width:400px){ .time{display:none} }
+/* 窄屏：标题与搜索上下排，搜索占满整行看得见 */
+@media (max-width:430px){
+  .app{ width:100% }
+  .head{ flex-direction:column; align-items:stretch; gap:8px; padding:12px 14px 6px }
+  .head h1{ font-size:16px }
+  .search input{ font-size:14px; padding:9px 13px }
+  .search button{ padding:0 14px }
+}
 </style>
 </head>
 <body>
