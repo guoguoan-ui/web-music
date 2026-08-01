@@ -1146,8 +1146,15 @@
       }
     }
 @media (max-width:500px){
-  .app { padding: 0; gap: 4px; }
+  /* 手机版：页面允许滚动，三块面板纵向铺开，不再被 100vh 截断 */
+  html, body { overflow: auto; height: auto; }
+  .app { height: auto; min-height: 100vh; padding: 0; gap: 4px; }
+  .layout { overflow: visible; min-height: auto; }
+  .search-panel, .player-panel, .playlist-panel { max-height: none !important; }
+  .search-results, .lyrics-inner, .playlist-main { max-height: none !important; overflow-y: visible !important; }
   header { padding: 4px 8px; min-height: 40px; }
+  header .shortcut-hint { display: none; }
+  .header-controls { justify-content: flex-end; }
   .cover-wrapper { width: 72px; height: 72px; }
   .player-top { gap: 8px; }
   .track-title { font-size: 14px; }
