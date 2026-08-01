@@ -94,11 +94,15 @@ body.electron .app{ height:100vh; border-radius:0; box-shadow:none; border:none 
 .empty.hide{display:none}
 
 /* 收藏页：导入按钮 */
-.fav-head{display:flex; align-items:center; justify-content:space-between; padding:4px 6px 8px; flex-shrink:0}
+.fav-head{display:flex; align-items:center; justify-content:space-between; padding:4px 6px 8px; flex-shrink:0; gap:8px; flex-wrap:wrap}
 .fav-title{font-size:14px; font-weight:700; color:var(--text)}
+.fav-actions{display:flex; gap:6px; flex-shrink:0}
 #importBtn{border:none; background:var(--brand); color:#fff; font-size:12.5px; font-weight:600;
-  padding:8px 14px; border-radius:20px; cursor:pointer; box-shadow:0 4px 12px rgba(108,140,255,.3); transition:transform .15s}
+  padding:8px 13px; border-radius:20px; cursor:pointer; box-shadow:0 4px 12px rgba(108,140,255,.3); transition:transform .15s; white-space:nowrap}
 #importBtn:active{transform:scale(.92)}
+#syncBtn{border:1px solid var(--border); background:var(--glass-3); color:var(--text); font-size:12.5px; font-weight:600;
+  padding:8px 13px; border-radius:20px; cursor:pointer; transition:transform .15s; white-space:nowrap}
+#syncBtn:active{transform:scale(.92)}
 
 /* AI 助手 */
 .ai{height:100%; display:flex; flex-direction:column; padding:8px; gap:8px}
@@ -192,7 +196,10 @@ body.electron .player .btn, body.electron .player .bar{ -webkit-app-region: no-d
     <div id="view-fav" style="display:none">
       <div class="fav-head">
         <span class="fav-title">我的收藏</span>
-        <button id="importBtn">＋ 导入网易云歌单</button>
+        <div class="fav-actions">
+          <button id="syncBtn" class="ghost">导出同步</button>
+          <button id="importBtn">＋ 导入歌单</button>
+        </div>
       </div>
       <div class="empty" id="favEmpty">还没有收藏的歌曲<br>点上方"导入网易云歌单"一键加入</div>
       <div id="favList"></div>
@@ -442,6 +449,22 @@ $("#prev").onclick=prev;
 $("#heart").onclick=()=>{ if(queue[qi]) toggleFav(queue[qi]); };
 $("#aiSend").onclick=aiSend;
 $("#importBtn").onclick=importNetease;
+
+/* ── 导出/同步收藏（零账号，复制链接跨设备） ── */
+function encFavs(f){ return btoa(unescape(encodeURIComponent(JSON.stringify(f)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+function decFavs(s){ return JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g,"+").replace(/_/g,"/"))))); }
+$("#syncBtn").onclick=()=>{
+  if(!favs.length){ alert("还没有收藏可导出"); return; }
+  const link = location.origin + location.pathname + "?sync=" + encFavs(favs);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(link).then(
+      ()=>{ alert("已复制同步链接！\n在手机浏览器打开这个链接，收藏就会同步过去。"); },
+      ()=>{ prompt("复制这个链接，在另一台设备浏览器打开即可同步收藏：", link); }
+    );
+  } else {
+    prompt("复制这个链接，在另一台设备浏览器打开即可同步收藏：", link);
+  }
+};
 $("#aiIn").addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); aiSend(); } });
 
 audio.addEventListener("play",()=>{ playing=true; $("#player").classList.add("playing"); $("#playIcon").innerHTML='<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>'; });
@@ -476,6 +499,22 @@ if(window.frostPlayerAPI && window.frostPlayerAPI.isElectron){ document.body.cla
 loadAICfg();
 $("#favCnt").textContent=favs.length;
 renderFavs();
+
+/* 打开同步链接时自动导入收藏 */
+(function(){
+  const s = new URLSearchParams(location.search).get("sync");
+  if(s){ try{
+    const imp = decFavs(s);
+    if(Array.isArray(imp) && imp.length){
+      favs = imp;
+      localStorage.setItem("favs", JSON.stringify(favs));
+      $("#favCnt").textContent = favs.length;
+      renderFavs();
+      alert("已同步 " + favs.length + " 首收藏到本设备！");
+      history.replaceState({}, "", location.pathname);
+    }
+  }catch(e){ alert("同步链接无效或已损坏，请重新导出"); } }
+})();
 </script>
 </body>
 </html>
