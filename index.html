@@ -122,6 +122,22 @@ body.electron .app{ height:100vh; border-radius:0; box-shadow:none; border:none 
 .ai-settings input{flex:1; background:#fff; border:1px solid var(--border); border-radius:8px; padding:6px 9px; font-size:12px; color:var(--text); outline:none}
 .ai-settings .hint{font-size:10.5px; color:var(--dim2)}
 
+/* 我的：登录/注册 */
+.my{padding:8px}
+.my-card{display:flex; flex-direction:column; gap:10px; background:var(--glass-3); border:1px solid var(--border);
+  border-radius:14px; padding:18px 16px}
+.my-title{font-size:15px; font-weight:700; text-align:center}
+.my-sub{font-size:12px; color:var(--dim); text-align:center; margin-top:-4px}
+.my-switch{display:flex; background:var(--glass-2); border-radius:10px; padding:3px; gap:3px}
+.my-switch .seg{flex:1; text-align:center; padding:7px 0; font-size:13px; border-radius:8px; color:var(--dim); cursor:pointer}
+.my-switch .seg.on{background:#fff; color:var(--text); font-weight:600; box-shadow:0 1px 4px rgba(20,24,40,.12)}
+.my input{background:#fff; border:1px solid var(--border); border-radius:10px; padding:11px 12px; font-size:14px; color:var(--text); outline:none}
+.my input:focus{border-color:var(--accent-a)}
+.my-card button{border:none; background:var(--brand); color:#fff; border-radius:10px; padding:12px; font-size:14px; font-weight:600; cursor:pointer; box-shadow:0 4px 12px rgba(108,140,255,.3)}
+.my-card button:active{transform:scale(.97)}
+.my-card .ghost-btn{background:var(--glass-2); color:var(--text); box-shadow:none; border:1px solid var(--border)}
+.my-err{font-size:12px; color:#e5484d; text-align:center; min-height:16px}
+
 /* 底部播放器 */
 .player{flex-shrink:0; margin:8px; padding:12px 14px; border-radius:14px;
   background:var(--glass-3); border:1px solid var(--border); display:flex; align-items:center; gap:12px; box-shadow:0 6px 18px rgba(50,60,110,.10)}
@@ -164,6 +180,8 @@ body.electron .player .btn, body.electron .player .bar{ -webkit-app-region: no-d
   .search button{ padding:0 14px }
 }
 </style>
+<!-- Supabase 客户端（云端账号 + 收藏同步） -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="app">
@@ -182,6 +200,7 @@ body.electron .player .btn, body.electron .player .bar{ -webkit-app-region: no-d
     <div class="tab" data-tab="lyric">歌词</div>
     <div class="tab" data-tab="fav">收藏<span class="cnt" id="favCnt">0</span></div>
     <div class="tab" data-tab="ai">小春 AI</div>
+    <div class="tab" data-tab="my">我的</div>
   </div>
 
   <!-- 内容 -->
@@ -218,6 +237,27 @@ body.electron .player .btn, body.electron .player .bar{ -webkit-app-region: no-d
         <div class="inbar">
           <textarea id="aiIn" placeholder="跟小春说点什么…（Enter 发送）"></textarea>
           <button id="aiSend">发送</button>
+        </div>
+      </div>
+    </div>
+    <div id="view-my" style="display:none">
+      <div class="my">
+        <div class="my-card" id="myLoggedOut">
+          <div class="my-title">登录账号，收藏自动云同步</div>
+          <div class="my-sub">同一账号在电脑/手机登录，收藏自动同步</div>
+          <div class="my-switch">
+            <span id="modeLogin" class="seg on">登录</span><span id="modeReg" class="seg">注册</span>
+          </div>
+          <input id="myEmail" type="email" placeholder="邮箱账号" autocomplete="username" />
+          <input id="myPass" type="password" placeholder="密码（至少 6 位）" autocomplete="current-password" />
+          <button id="mySubmit">登录</button>
+          <div class="my-err" id="myErr"></div>
+        </div>
+        <div class="my-card" id="myLoggedIn" style="display:none">
+          <div class="my-title" id="myAccount">已登录</div>
+          <div class="my-sub" id="myHint">收藏已开启云同步</div>
+          <button id="mySync" class="ghost-btn">立即同步收藏</button>
+          <button id="myOut">退出登录</button>
         </div>
       </div>
     </div>
@@ -266,6 +306,7 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   $("#view-lyric").style.display = k==="lyric"?"":"none";
   $("#view-fav").style.display = k==="fav"?"":"none";
   $("#view-ai").style.display = k==="ai"?"":"none";
+  $("#view-my").style.display = k==="my"?"":"none";
 });
 
 /* ── 搜索 ── */
@@ -346,11 +387,14 @@ function highlightLyric(t){
 function isFav(s){ return favs.some(f=>f.url===s.url); }
 function toggleFav(s){
   const k=favs.findIndex(f=>f.url===s.url);
-  if(k>-1) favs.splice(k,1); else favs.push({t:s.t,a:s.a,url:s.url,pic:s.pic,dur:s.dur});
+  const adding = k===-1;
+  if(adding) favs.push({t:s.t,a:s.a,url:s.url,pic:s.pic,dur:s.dur});
+  else favs.splice(k,1);
   localStorage.setItem("favs",JSON.stringify(favs));
   $("#favCnt").textContent=favs.length;
   $("#heart").classList.toggle("on",isFav(s));
   renderSearch(); renderFavs();
+  if(user) cloudSet(s, adding); // 已登录则同步云端
 }
 function renderFavs(){
   const list=$("#favList");
@@ -465,6 +509,81 @@ $("#syncBtn").onclick=()=>{
     prompt("复制这个链接，在另一台设备浏览器打开即可同步收藏：", link);
   }
 };
+
+/* ── 云端账号：Supabase 登录/注册 + 收藏自动同步 ── */
+const SUPABASE_URL = "https://jiqdsoqaewgxkhucnjmj.supabase.co";
+const SUPABASE_KEY = "sb_publishable_HeOyilFm-nxPIpvWqniXmw_YkAMp3u0";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let user = null;
+
+function setUI(u){
+  user = u || null;
+  if(user){
+    $("#myLoggedOut").style.display="none";
+    $("#myLoggedIn").style.display="flex";
+    $("#myAccount").textContent = "已登录：" + (user.email||"");
+  } else {
+    $("#myLoggedOut").style.display="flex";
+    $("#myLoggedIn").style.display="none";
+  }
+}
+async function cloudSet(s, adding){
+  if(!user) return;
+  try{
+    if(adding) await sb.from("favorites").upsert({user_id:user.id,url:s.url,t:s.t,a:s.a,pic:s.pic||"",dur:s.dur||0},{onConflict:"user_id,url"});
+    else await sb.from("favorites").delete().eq("user_id",user.id).eq("url",s.url);
+  }catch(e){ console.warn("cloud sync fail", e.message); }
+}
+async function pushAllFavs(){
+  if(!user) return;
+  for(const f of favs){
+    try{ await sb.from("favorites").upsert({user_id:user.id,url:f.url,t:f.t,a:f.a,pic:f.pic||"",dur:f.dur||0},{onConflict:"user_id,url"}); }
+    catch(e){}
+  }
+}
+async function loadCloudFavs(){
+  if(!user) return;
+  try{
+    const {data} = await sb.from("favorites").select("*").eq("user_id",user.id);
+    if(data){
+      const cloud = data.map(x=>({t:x.t,a:x.a||"",url:x.url,pic:x.pic||"",dur:x.dur||0,src:"云端"}));
+      const map = new Map(); favs.forEach(f=>map.set(f.url,f)); cloud.forEach(f=>map.set(f.url,f));
+      favs = [...map.values()];
+      localStorage.setItem("favs",JSON.stringify(favs));
+      $("#favCnt").textContent=favs.length;
+      renderFavs();
+    }
+  }catch(e){ console.warn(e); }
+}
+async function loginAction(){
+  const email=$("#myEmail").value.trim(), pass=$("#myPass").value;
+  const isReg = $("#modeReg").classList.contains("on");
+  $("#myErr").textContent="";
+  if(!email||!pass){ $("#myErr").textContent="请填写邮箱和密码"; return; }
+  try{
+    let r;
+    if(isReg){
+      r = await sb.auth.signUp({email,password:pass});
+      if(r.error) throw r.error;
+      if(!r.data.session){ $("#myErr").textContent="注册成功！请先去邮箱点确认链接，然后回来点登录。若一直登不上，把 Supabase 的邮箱确认关掉"; return; }
+    } else {
+      r = await sb.auth.signInWithPassword({email,password:pass});
+      if(r.error) throw r.error;
+    }
+    const {data:{user:u}} = await sb.auth.getUser();
+    setUI(u);
+    await pushAllFavs();
+    await loadCloudFavs();
+  }catch(e){ $("#myErr").textContent = "出错："+(e.message||e); }
+}
+async function logoutAction(){ await sb.auth.signOut(); setUI(null); }
+$("#modeLogin").onclick=()=>{ $("#modeLogin").classList.add("on"); $("#modeReg").classList.remove("on"); $("#mySubmit").textContent="登录"; };
+$("#modeReg").onclick=()=>{ $("#modeReg").classList.add("on"); $("#modeLogin").classList.remove("on"); $("#mySubmit").textContent="注册"; };
+$("#mySubmit").onclick=loginAction;
+$("#myOut").onclick=logoutAction;
+$("#mySync").onclick=async()=>{ await pushAllFavs(); await loadCloudFavs(); alert("已同步收藏！"); };
+
+sb.auth.getSession().then(({data:{session}})=>{ if(session){ setUI(session.user); loadCloudFavs(); } else { setUI(null); } });
 $("#aiIn").addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); aiSend(); } });
 
 audio.addEventListener("play",()=>{ playing=true; $("#player").classList.add("playing"); $("#playIcon").innerHTML='<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>'; });
