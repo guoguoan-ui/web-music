@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#0f1115" />
+<title>云端音乐 · 随身听</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#1a1d24; --card2:#22262f; --text:#eef1f5; --muted:#9aa3b2;
+    --accent:#3d6cff; --accent2:#6a8bff; --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; max-width:520px; margin:0 auto;
+  }
+  header{padding:16px 16px 8px; display:flex; align-items:center; gap:10px; flex-shrink:0}
+  header h1{font-size:18px; margin:0; font-weight:700; letter-spacing:.5px; white-space:nowrap}
+  header h1 em{color:var(--accent2); font-style:normal}
+  .search{flex:1; display:flex; gap:8px}
+  .search input{
+    flex:1; background:var(--card); border:1px solid #2c313c; color:var(--text);
+    padding:10px 14px; border-radius:22px; font-size:15px; outline:none;
+  }
+  .search input:focus{border-color:var(--accent)}
+  .search button{
+    background:var(--accent); color:#fff; border:none; border-radius:22px;
+    padding:0 18px; font-size:15px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .tips{padding:0 18px 6px; font-size:12px; color:var(--muted); display:flex; gap:8px; flex-wrap:wrap; flex-shrink:0}
+  .tips span{cursor:pointer; background:var(--card); padding:4px 12px; border-radius:14px; transition:.15s}
+  .tips span:active{background:var(--accent); color:#fff}
+  main{flex:1; overflow-y:auto; padding:6px 14px 150px}
+  .row{display:flex; align-items:center; gap:12px; padding:10px 8px; border-radius:var(--radius); cursor:pointer}
+  .row:active{background:var(--card)}
+  .row .cover{width:46px; height:46px; border-radius:10px; background:var(--card2); overflow:hidden; flex-shrink:0}
+  .row .cover img{width:100%; height:100%; object-fit:cover; display:block}
+  .row .meta{flex:1; min-width:0}
+  .row .meta .t{font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text)}
+  .row .meta .a{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px}
+  .row .dur{font-size:12px; color:var(--muted); flex-shrink:0}
+  .row.playing .meta .t{color:var(--accent2)}
+  .row.playing .cover{border:2px solid var(--accent2)}
+  .empty{padding:60px 20px; text-align:center; color:var(--muted); font-size:14px; line-height:1.8}
+  .load{text-align:center; color:var(--muted); padding:30px}
+  .load::after{content:""; display:inline-block; width:16px;height:16px;margin-left:8px;
+    border:2px solid var(--muted); border-top-color:transparent; border-radius:50%;
+    animation:spin .8s linear infinite; vertical-align:-3px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  /* player bar */
+  .player{
+    position:fixed; left:50%; transform:translateX(-50%); bottom:0; width:100%; max-width:520px;
+    background:rgba(18,20,27,.96); border-top:1px solid #262b36; padding:10px 14px 18px; z-index:10;
+    backdrop-filter:blur(12px);
+  }
+  .player .now{display:flex; align-items:center; gap:10px}
+  .player .now img{width:40px;height:40px;border-radius:8px;object-fit:cover}
+  .player .now .nm{flex:1; min-width:0}
+  .player .now .nm .t{font-size:14px; white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .player .now .nm .a{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .ctrl{display:flex; align-items:center; gap:6px; margin-top:6px}
+  .ctrl .pr{flex:1; height:22px; display:flex; align-items:center; cursor:pointer}
+  .ctrl .pr .bar{position:relative; width:100%; height:4px; background:#333845; border-radius:2px}
+  .ctrl .pr .bar i{position:absolute; left:0; top:0; height:4px; background:var(--accent); border-radius:2px; width:0}
+  .ctrl .time{font-size:11px; color:var(--muted); width:76px; text-align:center}
+  .btn{background:none;border:none;color:var(--text);font-size:13px;cursor:pointer;padding:4px 8px;border-radius:8px;white-space:nowrap}
+  .btn:active{background:var(--card2)}
+  .btn.big{font-size:24px; padding:0 12px}
+  .hint{font-size:11px; color:var(--muted); text-align:center; margin-top:4px; opacity:.7}
+</style>
+</head>
+<body>
+<header>
+  <h1>云端<em>音乐</em></h1>
+  <div class="search">
+    <input id="q" type="search" placeholder="搜索歌曲 / 歌手…" autocomplete="off" />
+    <button id="go">搜索</button>
+  </div>
+</header>
+<div class="tips" id="tips">
+  <span data-q="周杰伦">周杰伦</span>
+  <span data-q="林俊杰">林俊杰</span>
+  <span data-q="薛之谦">薛之谦</span>
+  <span data-q="陈奕迅">陈奕迅</span>
+  <span data-q="民谣">民谣</span>
+  <span data-q="英文热歌">英文热歌</span>
+</div>
+<main id="list"><div class="empty">输入歌名或点上面标签开始听歌</div></main>
+
+<div class="player" id="player" style="display:none">
+  <div class="now">
+    <img id="pCover" src="" alt="" />
+    <div class="nm"><div class="t" id="pTitle">—</div><div class="a" id="pArtist">—</div></div>
+  </div>
+  <div class="ctrl">
+    <button class="btn" id="prev">⏮</button>
+    <button class="btn big" id="toggle">▶</button>
+    <button class="btn" id="next">⏭</button>
+    <button class="btn" id="mode">列表</button>
+    <div class="pr" id="pr"><div class="bar"><i id="fill"></i></div></div>
+    <div class="time" id="time">0:00 / 0:00</div>
+  </div>
+  <div class="hint">正在播放 — 点击列表里的歌可切换</div>
+</div>
+
+<audio id="audio"></audio>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = "https://api.qijieya.cn/meting/?server=netease&type=";
+let list = [], idx = 0, mode = "list"; // list | loop | random
+
+function fmt(s){ s=Math.floor(s||0); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+
+async function search(q){
+  const el = $("#list");
+  el.innerHTML = '<div class="load">搜索中</div>';
+  try{
+    const r = await fetch(api+"search&id="+encodeURIComponent(q), {headers:{}});
+    const data = await r.json();
+    if(!Array.isArray(data) || !data.length){ el.innerHTML='<div class="empty">没搜到，换个关键词试试</div>'; return; }
+    list = data.map(x=>({t:x.name, a:x.artist||"", url:x.url, pic:x.pic||"", dur:x.duration||0}));
+    render();
+  }catch(e){
+    el.innerHTML='<div class="empty">搜索失败，请稍后再试</div>';
+  }
+}
+
+function render(){
+  const el = $("#list"); el.innerHTML="";
+  list.forEach((s,i)=>{
+    const row = document.createElement("div");
+    row.className = "row"+(i===idx?" playing":"");
+    row.innerHTML =
+      '<div class="cover">'+(s.pic?'<img src="'+s.pic+'" alt="" onerror="this.style.display=&#39;none&#39;">':'')+'</div>'+
+      '<div class="meta"><div class="t">'+esc(s.t)+'</div><div class="a">'+esc(s.a)+'</div></div>'+
+      '<div class="dur">'+fmt(s.dur)+'</div>';
+    row.onclick = ()=> playAt(i);
+    el.appendChild(row);
+  });
+}
+function esc(x){ return String(x).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function playAt(i){
+  idx = i; const s = list[i];
+  const audio = $("#audio");
+  audio.src = s.url; audio.play().catch(()=>{});
+  $("#pTitle").textContent = s.t; $("#pArtist").textContent = s.a;
+  $("#pCover").src = s.pic||""; $("#player").style.display="block";
+  $("#toggle").textContent = "⏸";
+  render();
+}
+
+function next(skip){
+  if(!list.length) return;
+  if(mode==="random" && list.length>1){ let n; do{ n=Math.floor(Math.random()*list.length); }while(n===idx); idx=n; }
+  else idx = (idx+1) % list.length;
+  playAt(idx);
+}
+function prev(){ if(!list.length) return; idx=(idx-1+list.length)%list.length; playAt(idx); }
+
+const audio = $("#audio");
+$("#toggle").onclick = ()=>{ if(audio.paused){ audio.play(); $("#toggle").textContent="⏸"; } else { audio.pause(); $("#toggle").textContent="▶"; } };
+$("#next").onclick = ()=> next();
+$("#prev").onclick = ()=> prev();
+$("#mode").onclick = ()=>{ mode = mode==="list"?"loop":mode==="loop"?"random":"list"; $("#mode").textContent={list:"列表",loop:"单曲",random:"随机"}[mode]; };
+
+audio.addEventListener("timeupdate", ()=>{ $("#time").textContent = fmt(audio.currentTime)+" / "+fmt(audio.duration); $("#fill").style.width = (audio.duration? audio.currentTime/audio.duration*100 : 0)+"%"; });
+audio.addEventListener("ended", ()=>{ if(mode==="loop"){ audio.currentTime=0; audio.play(); } else next(true); });
+audio.addEventListener("error", ()=> next(true)); // 播不了的(会员歌)自动跳过
+
+$("#pr").addEventListener("click", e=>{ const r=e.currentTarget.getBoundingClientRect(); audio.currentTime = (e.clientX-r.left)/r.width*audio.duration; });
+
+$("#go").onclick = ()=>{ const q=$("#q").value.trim(); if(q) search(q); };
+$("#q").addEventListener("keydown", e=>{ if(e.key==="Enter"){ const q=e.target.value.trim(); if(q) search(q); } });
+document.querySelectorAll("#tips span").forEach(s=> s.onclick = ()=> search(s.dataset.q));
+
+// 打开即推荐
+search("热歌榜 流行");
+</script>
+</body>
+</html>
